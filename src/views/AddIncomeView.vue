@@ -14,7 +14,7 @@ import { useFormNotice } from '@/composables/useFormNotice'
 import { RECORD_NOT_FOUND_MESSAGE, useLedgerData } from '@/composables/useLedgerData'
 import type { Contribution, NewContribution } from '@/types/ledger'
 import type { ChoiceOption } from '@/types/ui'
-import { currentMonth, formatShareDate, formatShortMonth, todayKey } from '@/utils/date'
+import { currentMonth, formatShareDate, formatShortMonth, monthOf, todayKey } from '@/utils/date'
 import { computeFundBalance, settleAdvances } from '@/utils/ledgerCalc'
 import { changeLines, describeContribution, repaymentText } from '@/utils/ledgerDisplay'
 import { balanceText, buildShareText } from '@/utils/lineShare'
@@ -36,6 +36,9 @@ const amount = ref<number | null>(null)
 const forMonth = ref(currentMonth())
 const receivedDate = ref(todayKey())
 const description = ref('')
+// The dues month follows the received date unless someone deliberately picks another month
+// (paying early or late); otherwise back-dating a payment silently counted it toward this month.
+const monthFollowsDate = ref(true)
 const { notice, show: showNotice, dismiss: dismissNotice } = useFormNotice()
 
 const allMembers = computed(() => data.value?.members ?? [])
@@ -51,12 +54,22 @@ watch(
     if (!c) return
     source.value = c.memberId ?? OTHER_SOURCE
     amount.value = c.amount
-    forMonth.value = c.forMonth ?? currentMonth()
+    forMonth.value = c.forMonth ?? monthOf(c.receivedDate)
     receivedDate.value = c.receivedDate
     description.value = c.description
+    monthFollowsDate.value = forMonth.value === monthOf(c.receivedDate)
   },
   { once: true },
 )
+
+watch(receivedDate, (date) => {
+  if (monthFollowsDate.value && date) forMonth.value = monthOf(date)
+})
+
+function selectForMonth(month: string): void {
+  forMonth.value = month
+  monthFollowsDate.value = month === monthOf(receivedDate.value)
+}
 
 const sourceOptions = computed<ChoiceOption[]>(() => [
   ...activeMembers.value.map((m) => ({ value: m.id, label: m.name })),
@@ -172,13 +185,13 @@ async function confirmSave(): Promise<void> {
           <label class="field-label" for="income-description">收入說明</label>
           <input id="income-description" v-model="description" class="text-input" type="text" maxlength="100" placeholder="例如：期初餘額" />
         </div>
-        <div v-else class="field">
-          <span class="field-label">所屬月份</span>
-          <MonthSwitcher v-model="forMonth" />
-        </div>
         <div class="field">
           <label class="field-label" for="income-date">入帳日期</label>
           <input id="income-date" v-model="receivedDate" class="text-input" type="date" />
+        </div>
+        <div v-if="!isOther" class="field">
+          <span class="field-label">所屬月份</span>
+          <MonthSwitcher :model-value="forMonth" @update:model-value="selectForMonth" />
         </div>
         <div v-if="!isOther" class="field">
           <label class="field-label" for="income-note">備註（選填）</label>

@@ -26,6 +26,20 @@ describe('buildPassbook', () => {
     ])
   })
 
+  it('tags dues received in one month but counted toward another', () => {
+    const contributions = [
+      contribution({ id: 'late', memberId: 'm-dad', forMonth: '2026-10', receivedDate: '2026-11-02' }),
+      contribution({ id: 'onTime', memberId: 'm-mom', forMonth: '2026-11', receivedDate: '2026-11-03' }),
+      contribution({ id: 'other', memberId: null, forMonth: null, receivedDate: '2026-11-04', description: '期初餘額' }),
+    ]
+    const rows = buildPassbook(0, contributions, [], members, settleAdvances(contributions, []))
+    expect(rows.map((r) => [r.id, r.duesMonthTag])).toEqual([
+      ['late', '10月公費'],
+      ['onTime', null],
+      ['other', null],
+    ])
+  })
+
   it('flags an advance until it is fully paid back', () => {
     const expenses = [advance('m-dad', { id: 'e1', amount: 1200 })]
     const [row] = buildPassbook(0, [], expenses, members, settleAdvances([], expenses))

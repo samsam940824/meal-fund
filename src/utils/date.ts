@@ -20,6 +20,10 @@ export function currentMonth(now: Date = new Date()): MonthKey {
   return todayKey(now).slice(0, 7)
 }
 
+export function monthOf(date: DateKey): MonthKey {
+  return date.slice(0, 7)
+}
+
 export function isMonthKey(value: string): boolean {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(value)
 }

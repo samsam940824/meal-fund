@@ -1,5 +1,5 @@
 import type { Contribution, DateKey, Expense, LedgerData, Member, MonthKey } from '@/types/ledger'
-import { formatShortMonth, monthDateRange } from './date'
+import { formatShortMonth, monthDateRange, monthOf } from './date'
 import {
   compareChronologically,
   computeBalanceBefore,
@@ -29,6 +29,8 @@ export interface PassbookRow extends EntryText {
   balanceAfter: number
   /** An expense whose advance has not been fully paid back yet. */
   hasOutstandingAdvance: boolean
+  /** "10月公費" when dues count toward a month other than the one received in, else null. */
+  duesMonthTag: string | null
 }
 
 export interface MemberAdvanceSummary {
@@ -60,6 +62,16 @@ export function repaymentText(repayments: readonly Repayment[], members: readonl
   return repayments.map((r) => `歸還${memberName(members, r.memberId)}代墊${formatMoney(r.amount)}`).join('、')
 }
 
+/** The dues month when it differs from the month the money arrived (early or late payment). */
+function otherDuesMonth(c: Pick<Contribution, 'forMonth' | 'receivedDate'>): MonthKey | null {
+  return c.forMonth !== null && c.forMonth !== monthOf(c.receivedDate) ? c.forMonth : null
+}
+
+function duesMonthTag(c: Pick<Contribution, 'forMonth' | 'receivedDate'>): string | null {
+  const month = otherDuesMonth(c)
+  return month ? `${formatShortMonth(month)}公費` : null
+}
+
 /** Repayments are listed on the income that funded them. */
 export function describeContribution(
   c: Pick<Contribution, 'memberId' | 'forMonth' | 'description' | 'receivedDate'>,
@@ -71,7 +83,8 @@ export function describeContribution(
     return { title: c.description, detail: repaid }
   }
   // "X月的" only when paid for a different month than received, so rows stay short.
-  const otherMonth = c.forMonth !== c.receivedDate.slice(0, 7) ? `${formatShortMonth(c.forMonth)}的` : ''
+  const duesMonth = otherDuesMonth(c)
+  const otherMonth = duesMonth ? `${formatShortMonth(duesMonth)}的` : ''
   return {
     title: `${memberName(members, c.memberId)}繳費`,
     detail: [otherMonth, c.description, repaid].filter(Boolean).join('・'),
@@ -105,6 +118,7 @@ export function buildPassbook(
       createdAt: c.createdAt,
       amount: c.amount,
       hasOutstandingAdvance: false,
+      duesMonthTag: duesMonthTag(c),
       ...describeContribution(c, members, settlement.repayments.filter((r) => r.contributionId === c.id)),
     })),
     ...expenses.map((e) => ({
@@ -114,6 +128,7 @@ export function buildPassbook(
       createdAt: e.createdAt,
       amount: e.amount,
       hasOutstandingAdvance: outstandingIds.has(e.id),
+      duesMonthTag: null,
       ...describeExpense(e, members),
     })),
   ].sort(compareChronologically)

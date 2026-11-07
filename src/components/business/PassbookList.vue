@@ -50,7 +50,7 @@ function balanceText(balance: number): string {
         >
           <td class="date">{{ shortDate(row.date) }}</td>
           <td class="title">
-            {{ row.title }}<span v-if="row.hasOutstandingAdvance" class="tag">代墊</span>
+            {{ row.title }}<span v-if="row.hasOutstandingAdvance" class="tag">代墊</span><span v-if="row.duesMonthTag" class="tag">{{ row.duesMonthTag }}</span>
           </td>
           <td :class="['num', 'amount', row.kind === 'income' ? 'money-in' : 'money-out']">
             {{ formatSignedAmount(row.kind === 'income' ? row.amount : -row.amount) }}
